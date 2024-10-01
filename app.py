@@ -56,31 +56,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @authorized
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text('Please enter the item name you want to search for:')
+    await update.message.reply_text('Please enter the product name you want to search for:')
     context.user_data['waiting_for_search'] = True
 
 
 @authorized
 async def tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    tracked_items = context.user_data.get('tracked_items', [])
+    tracked_products = context.user_data.get('tracked_products', [])
 
     # Initialize the keyboard with the "Back" button
     keyboard = [[KeyboardButton("Back")]]
 
-    if not tracked_items:
-        # No items added, show "Add item to track" button
-        keyboard.insert(0, [KeyboardButton("Add item to track")])  # Insert at the top
+    if not tracked_products:
+        keyboard.insert(0, [KeyboardButton("Add product to track")])
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        await update.message.reply_text('You have not added any items to track.', reply_markup=reply_markup)
+        await update.message.reply_text('You have not added any products to track.', reply_markup=reply_markup)
     else:
-        response = "You have the following items tracked:\n\n" + "\n".join(item['name'] for item in tracked_items)
+        response = "You have the following products tracked:\n\n" + "\n".join(product['name'] for product in tracked_products)
 
-        # Add buttons for item removal
-        for item in tracked_items:
-            keyboard.insert(-1, [KeyboardButton(item["name"])])  # Add item buttons before "Back"
+        for product in tracked_products:
+            keyboard.insert(-1, [KeyboardButton(product["name"])])
 
-        if not len(tracked_items) + 1 > TRACKING_LIMIT:
-            keyboard.insert(0, [KeyboardButton("Add item to track")])
+        if not len(tracked_products) + 1 > TRACKING_LIMIT:
+            keyboard.insert(0, [KeyboardButton("Add product to track")])
 
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         response += "\n\nUse the button below to go back."
@@ -89,43 +87,43 @@ async def tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Input
 @authorized
-async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Check if the user is in the process of adding an item
+async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Check if the user is in the process of adding an product
     if context.user_data.get('waiting_for_search'):
-        item_name = update.message.text
-        context.user_data['item_name'] = item_name
+        product_name = update.message.text
+        context.user_data['product_name'] = product_name
         context.user_data['waiting_for_search'] = False
         await fetch_olx_data(update, context)
-    elif context.user_data.get('adding_item'):
-        # Add item to track
-        item_name = update.message.text
-        item_id = uuid.uuid4().hex
-        tracked_items = context.user_data.setdefault('tracked_items', [])
-        if not any(item['name'] == item_name for item in tracked_items):
-            tracked_items.append({'id': item_id, 'name': item_name})
-            scheduler.schedule_job(item_id, item_name, 1)
-            await update.message.reply_text(f'Item "{item_name}" has been added to your tracked items.')
+    elif context.user_data.get('adding_product'):
+        # Add product to track
+        product_name = update.message.text
+        product_id = uuid.uuid4().hex
+        tracked_products = context.user_data.setdefault('tracked_products', [])
+        if not any(product['name'] == product_name for product in tracked_products):
+            tracked_products.append({'id': product_id, 'name': product_name})
+            scheduler.schedule_job(product_id, product_name, 1)
+            await update.message.reply_text(f'product "{product_name}" has been added to your tracked products.')
         else:
-            await update.message.reply_text(f'You already have "{item_name}" in your tracked items.')
+            await update.message.reply_text(f'You already have "{product_name}" in your tracked products.')
         await tracking(update, context)
-        context.user_data['adding_item'] = False  # Reset adding_item flag
-    elif update.message.text == "Add item to track":
-        # Set flag to indicate waiting for item name
-        context.user_data['adding_item'] = True
-        await update.message.reply_text("Type item name:")
-    elif any(item['name'] == update.message.text for item in context.user_data.get('tracked_items', [])):
-        # Remove the selected item
-        item_to_remove = update.message.text
-        tracked_items = context.user_data['tracked_items']
+        context.user_data['adding_product'] = False  # Reset adding_product flag
+    elif update.message.text == "Add product to track":
+        # Set flag to indicate waiting for product name
+        context.user_data['adding_product'] = True
+        await update.message.reply_text("Type product name:")
+    elif any(product['name'] == update.message.text for product in context.user_data.get('tracked_products', [])):
+        # Remove the selected product
+        product_to_remove = update.message.text
+        tracked_products = context.user_data['tracked_products']
 
-        item_to_remove_obj = next(item for item in tracked_items if item['name'] == item_to_remove)
-        item_id = item_to_remove_obj['id']
+        product_to_remove_obj = next(product for product in tracked_products if product['name'] == product_to_remove)
+        product_id = product_to_remove_obj['id']
 
-        scheduler.cancel_job(item_id)
+        scheduler.cancel_job(product_id)
 
-        tracked_items = [item for item in tracked_items if item['name'] != item_to_remove]
-        context.user_data['tracked_items'] = tracked_items
-        await update.message.reply_text(f'Item "{item_to_remove}" has been removed from your tracked items.')
+        tracked_products = [product for product in tracked_products if product['name'] != product_to_remove]
+        context.user_data['tracked_products'] = tracked_products
+        await update.message.reply_text(f'product "{product_to_remove}" has been removed from your tracked products.')
         await tracking(update, context)
     elif update.message.text == "Back":
         await update.message.reply_text('Main menu. Choose an option:', reply_markup=main_reply_keyboard())
@@ -135,16 +133,16 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Fetch data from OLX API and send it to the user."""
-    item_name = context.user_data.get('item_name')
-    if not item_name:
-        await update.message.reply_text("Please use /search to specify an item name first.")
+    product_name = context.user_data.get('product_name')
+    if not product_name:
+        await update.message.reply_text("Please use /search to specify an product name first.")
         return
 
     url = "https://www.olx.ua/api/v1/offers/"
     params = {
         "offset": 0,
         "limit": 10,
-        "query": item_name,
+        "query": product_name,
         "currency": "UAH",
         "sort_by": "created_at:desc",
         "filter_refiners": "spell_checker",
@@ -153,26 +151,26 @@ async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     try:
         data = fetch_data(url, params)
-        items = data.get('data', [])
+        products = data.get('data', [])
 
-        if not items:
-            await update.message.reply_text(f"No items found for '{item_name}'.")
+        if not products:
+            await update.message.reply_text(f"No products found for '{product_name}'.")
             return
 
-        response = f"Found {len(items)} offers for '{item_name}':\n\n"
+        response = f"Found {len(products)} offers for '{product_name}':\n\n"
 
-        for item in items[:10]:
-            title = item.get('title', 'No title')
-            url = item.get('url', 'No URL')
+        for product in products[:10]:
+            title = product.get('title', 'No title')
+            url = product.get('url', 'No URL')
             price_label = ''
-            for param in item.get('params', []):
+            for param in product.get('params', []):
                 if param.get('key') == 'price':
                     price_label = param.get('value', {}).get('label', 'Price not available')
                     break
             response += f"• {title}\n{price_label}\n{url}\n\n\n"
 
-        if len(items) > 10:
-            response += f"... and {len(items) - 10} more items."
+        if len(products) > 10:
+            response += f"... and {len(products) - 10} more products."
 
         link_preview_options = LinkPreviewOptions(is_disabled=True)
 
@@ -193,9 +191,8 @@ def main() -> None:
     application.add_handler(CommandHandler("search", search))
     application.add_handler(CommandHandler("tracking", tracking))
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item_input))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_input))
 
-    # Run the bot until the user presses Ctrl-C
     application.run_polling()
 
 
