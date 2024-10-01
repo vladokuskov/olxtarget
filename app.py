@@ -8,7 +8,22 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-ALLOWED_USERS = [414510674]
+ALLOWED_USERS = [4145105674]
+
+async def check_authorization(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id not in ALLOWED_USERS:
+        await update.message.reply_text("Sorry, you are not authorized.")
+        return True
+    return False
+
+
+def authorized(func):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await check_authorization(update, context):
+            return
+        return await func(update, context)
+    return wrapper
 
 # Menu
 def create_reply_keyboard():
@@ -19,6 +34,7 @@ def create_reply_keyboard():
 
 
 # Commands
+@authorized
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
 
@@ -31,13 +47,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.reply_text('Welcome! Please choose an option:', reply_markup=reply_markup)
 
-
+@authorized
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text('Please enter the item name you want to search for:')
     context.user_data['waiting_for_item'] = True
 
 
 # Input
+@authorized
 async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if context.user_data.get('waiting_for_item'):
         item_name = update.message.text
