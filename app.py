@@ -4,12 +4,16 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Messa
 import requests
 import os
 from dotenv import load_dotenv
+import uuid
+
+from scheduler import scheduler
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
 ALLOWED_USERS = [414510674]
-NOTIFICATIONS_LIMIT = 5
+TRACKING_LIMIT = 5
+
 
 async def check_authorization(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -30,7 +34,7 @@ def authorized(func):
 def main_reply_keyboard():
     keyboard = [
         [KeyboardButton("/search")],
-        [KeyboardButton("/notifications")]
+        [KeyboardButton("/tracking")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -57,7 +61,7 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 @authorized
-async def notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     tracked_items = context.user_data.get('tracked_items', [])
 
     # Initialize the keyboard with the "Back" button
@@ -69,13 +73,13 @@ async def notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await update.message.reply_text('You have not added any items to track.', reply_markup=reply_markup)
     else:
-        response = "You have the following items tracked:\n\n" + "\n".join(tracked_items)
+        response = "You have the following items tracked:\n\n" + "\n".join(item['name'] for item in tracked_items)
 
         # Add buttons for item removal
         for item in tracked_items:
-            keyboard.insert(-1, [KeyboardButton(item)])  # Add item buttons before "Back"
+            keyboard.insert(-1, [KeyboardButton(item["name"])])  # Add item buttons before "Back"
 
-        if not len(tracked_items) + 1 > NOTIFICATIONS_LIMIT:
+        if not len(tracked_items) + 1 > TRACKING_LIMIT:
             keyboard.insert(0, [KeyboardButton("Add item to track")])
 
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -95,25 +99,34 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     elif context.user_data.get('adding_item'):
         # Add item to track
         item_name = update.message.text
+        item_id = uuid.uuid4().hex
         tracked_items = context.user_data.setdefault('tracked_items', [])
-        if item_name not in tracked_items:
-            tracked_items.append(item_name)
+        if not any(item['name'] == item_name for item in tracked_items):
+            tracked_items.append({'id': item_id, 'name': item_name})
+            scheduler.schedule_job(item_id, item_name, 10)
             await update.message.reply_text(f'Item "{item_name}" has been added to your tracked items.')
         else:
             await update.message.reply_text(f'You already have "{item_name}" in your tracked items.')
-        await notifications(update, context)
+        await tracking(update, context)
         context.user_data['adding_item'] = False  # Reset adding_item flag
     elif update.message.text == "Add item to track":
         # Set flag to indicate waiting for item name
         context.user_data['adding_item'] = True
         await update.message.reply_text("Type item name:")
-    elif update.message.text in context.user_data.get('tracked_items', []):
+    elif any(item['name'] == update.message.text for item in context.user_data.get('tracked_items', [])):
         # Remove the selected item
         item_to_remove = update.message.text
         tracked_items = context.user_data['tracked_items']
-        tracked_items.remove(item_to_remove)
+
+        item_to_remove_obj = next(item for item in tracked_items if item['name'] == item_to_remove)
+        item_id = item_to_remove_obj['id']
+
+        scheduler.cancel_job(item_id)
+
+        tracked_items = [item for item in tracked_items if item['name'] != item_to_remove]
+        context.user_data['tracked_items'] = tracked_items
         await update.message.reply_text(f'Item "{item_to_remove}" has been removed from your tracked items.')
-        await notifications(update, context)
+        await tracking(update, context)
     elif update.message.text == "Back":
         await update.message.reply_text('Main menu. Choose an option:', reply_markup=main_reply_keyboard())
     else:
@@ -173,11 +186,12 @@ def main() -> None:
     """Set up and run the bot."""
     # Create the Application and pass it your bot's token.
     application = ApplicationBuilder().token(TOKEN).build()
+    scheduler.run_scheduler()
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("search", search))
-    application.add_handler(CommandHandler("notifications", notifications))
+    application.add_handler(CommandHandler("tracking", tracking))
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_item_input))
 
