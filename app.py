@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 
-from scheduler import scheduler
+from scheduler import scheduler, start_scheduler_thread
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -103,7 +103,7 @@ async def handle_item_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         tracked_items = context.user_data.setdefault('tracked_items', [])
         if not any(item['name'] == item_name for item in tracked_items):
             tracked_items.append({'id': item_id, 'name': item_name})
-            scheduler.schedule_job(item_id, item_name, 10)
+            scheduler.schedule_job(item_id, item_name, 1)
             await update.message.reply_text(f'Item "{item_name}" has been added to your tracked items.')
         else:
             await update.message.reply_text(f'You already have "{item_name}" in your tracked items.')
@@ -161,7 +161,7 @@ async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         response = f"Found {len(items)} offers for '{item_name}':\n\n"
 
-        for item in items[:10]:  # Limit to first 10 items to avoid message length issues
+        for item in items[:10]:
             title = item.get('title', 'No title')
             url = item.get('url', 'No URL')
             price_label = ''
@@ -186,7 +186,7 @@ def main() -> None:
     """Set up and run the bot."""
     # Create the Application and pass it your bot's token.
     application = ApplicationBuilder().token(TOKEN).build()
-    scheduler.run_scheduler()
+    start_scheduler_thread(scheduler)
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
