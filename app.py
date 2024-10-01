@@ -58,11 +58,12 @@ async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     url = "https://www.olx.ua/api/v1/offers/"
     params = {
         "offset": 0,
-        "limit": 40,
+        "limit": 10,
         "query": item_name,
+        "currency": "UAH",
+        "sort_by": "created_at:desc",
         "filter_refiners": "spell_checker",
         "suggest_filters": "true",
-        "sl": "191ef50d97ax62d48675"
     }
 
     try:
@@ -78,7 +79,12 @@ async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         for item in items[:10]:  # Limit to first 10 items to avoid message length issues
             title = item.get('title', 'No title')
             url = item.get('url', 'No URL')
-            response += f"• {title}\n{url}\n\n"
+            price_label = ''
+            for param in item.get('params', []):
+                if param.get('key') == 'price':
+                    price_label = param.get('value', {}).get('label', 'Price not available')
+                    break
+            response += f"• {title}\n{price_label}\n{url}\n\n\n"
 
         if len(items) > 10:
             response += f"... and {len(items) - 10} more items."
