@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-ALLOWED_USERS = [4145105674]
+ALLOWED_USERS = [414510674]
 
 async def check_authorization(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
