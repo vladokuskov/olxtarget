@@ -1,3 +1,4 @@
+from helpers.api import fetch_olx_products
 from helpers.helpers import fetch_data
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, LinkPreviewOptions
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
@@ -93,7 +94,7 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         product_name = update.message.text
         context.user_data['product_name'] = product_name
         context.user_data['waiting_for_search'] = False
-        await fetch_olx_data(update, context)
+        await search_olx_products(update, context)
     elif context.user_data.get('adding_product'):
         # Add product to track
         user_id = update.effective_user.id
@@ -102,7 +103,7 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         tracked_products = context.user_data.setdefault('tracked_products', [])
         if not any(product['name'] == product_name for product in tracked_products):
             tracked_products.append({'id': product_id, 'name': product_name})
-            scheduler.schedule_job(product_id, product_name, 1)
+            scheduler.schedule_job(product_id, product_name, 1, user_id)
             await update.message.reply_text(f'Product "{product_name}" has been added to your tracked products.')
         else:
             await update.message.reply_text(f'You already have "{product_name}" in your tracked products.')
@@ -132,27 +133,15 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("Please use /search to start a new search.")
 
 
-async def fetch_olx_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def search_olx_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Fetch data from OLX API and send it to the user."""
     product_name = context.user_data.get('product_name')
     if not product_name:
         await update.message.reply_text("Please use /search to specify an product name first.")
         return
 
-    url = "https://www.olx.ua/api/v1/offers/"
-    params = {
-        "offset": 0,
-        "limit": 10,
-        "query": product_name,
-        "currency": "UAH",
-        "sort_by": "created_at:desc",
-        "filter_refiners": "spell_checker",
-        "suggest_filters": "true",
-    }
-
     try:
-        data = fetch_data(url, params)
-        products = data.get('data', [])
+        products = await fetch_olx_products(product_name)
 
         if not products:
             await update.message.reply_text(f"No products found for '{product_name}'.")

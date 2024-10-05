@@ -1,20 +1,48 @@
+import asyncio
 import threading
 import time
 
 import schedule
+
+from helpers.api import fetch_olx_products
 from helpers.logger import logger
+from store import store
+
 
 class Scheduler:
     def __init__(self):
         self.scheduled_jobs = {}
 
-    def job(self, name: str):
+    async def job(self, name: str, user_id: str):
         print(f"I'm working... {name}")
 
-    def schedule_job(self, job_id: str, name: str, interval: int):
+        products = await fetch_olx_products(name)
+
+        for product in products:
+            title = product.get('title', 'No title')
+            url = product.get('url', 'No URL')
+
+            if store.is_product_exist(url, user_id):
+                continue
+
+            price_label = ''
+            for param in product.get('params', []):
+                if param.get('key') == 'price':
+                    price_label = param.get('value', {}).get('label', 'Price not available')
+                    break
+
+            # TODO: Send notification to a Telegram user
+
+            store.add_product(url, user_id)
+
+    def run_async_job(self, name: str, user_id: str):
+        # Create an event loop and run the async job
+        asyncio.run(self.job(name, user_id))
+
+    def schedule_job(self, job_id: str, name: str, interval: int, user_id: str):
         self.scheduled_jobs[job_id] = {
             "name": name,
-            "job": schedule.every(interval).minutes.do(self.job, name)
+            "job": schedule.every(interval).minutes.do(self.run_async_job, name, user_id)
         }
         logger.info(f"Job for product: {name} and ID: ({job_id}) - scheduled every {interval} minutes.")
 
