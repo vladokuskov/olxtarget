@@ -38,10 +38,10 @@ class Scheduler:
                     break
 
             message = (
-                f"🔔 *New Product Found!*\n\n"
-                f"*Title:* {title}\n"
-                f"*Price:* {price_label}\n"
-                f"*Link:* [Click here]({url})\n"
+                f"🔔 New Product Found!\n\n"
+                f"Title: {title}\n"
+                f"Price: {price_label}\n"
+                f"{url}\n"
             )
 
             try:
