@@ -12,7 +12,12 @@ from scheduler import scheduler, start_scheduler_thread
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-ALLOWED_USERS = [414510674]
+allowed_users_str = os.getenv('ALLOWED_USERS')
+if allowed_users_str:
+    ALLOWED_USERS = list(map(int, allowed_users_str.split(',')))
+else:
+    ALLOWED_USERS = []
+
 TRACKING_LIMIT = 5
 
 
