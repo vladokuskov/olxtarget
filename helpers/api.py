@@ -1,5 +1,4 @@
 import requests
-
 from helpers.helpers import fetch_data
 
 

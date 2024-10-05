@@ -1,5 +1,4 @@
 from helpers.api import fetch_olx_products
-from helpers.helpers import fetch_data
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, LinkPreviewOptions
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 import requests
