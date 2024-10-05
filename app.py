@@ -96,6 +96,7 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await fetch_olx_data(update, context)
     elif context.user_data.get('adding_product'):
         # Add product to track
+        user_id = update.effective_user.id
         product_name = update.message.text
         product_id = uuid.uuid4().hex
         tracked_products = context.user_data.setdefault('tracked_products', [])
