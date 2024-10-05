@@ -1,4 +1,4 @@
-class ProductsStore:
+class Store:
     def __init__(self):
         self.products = {}
 
@@ -10,4 +10,4 @@ class ProductsStore:
     def is_product_exist(self, product_url: str, user_id: str) -> bool:
         return user_id in self.products and product_url in self.products[user_id]
 
-store = ProductsStore()
+store = Store()
