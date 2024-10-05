@@ -1,6 +1,13 @@
 import asyncio
+import os
 import threading
 import time
+from telegram import Bot
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+bot = Bot(token=TOKEN)
 
 import schedule
 
@@ -12,10 +19,9 @@ from store import store
 class Scheduler:
     def __init__(self):
         self.scheduled_jobs = {}
+        self.loop = asyncio.get_event_loop()
 
     async def job(self, name: str, user_id: str):
-        print(f"I'm working... {name}")
-
         products = await fetch_olx_products(name)
 
         for product in products:
@@ -31,13 +37,19 @@ class Scheduler:
                     price_label = param.get('value', {}).get('label', 'Price not available')
                     break
 
-            # TODO: Send notification to a Telegram user
+            message = f"New product found: {title}\nPrice: {price_label}\nURL: {url}"
+
+            try:
+                # Send a notification to the user
+                await bot.send_message(chat_id=user_id, text=message)
+            except Exception as e:
+                print(f"Error sending message to user: {e}")
 
             store.add_product(url, user_id)
 
     def run_async_job(self, name: str, user_id: str):
         # Create an event loop and run the async job
-        asyncio.run(self.job(name, user_id))
+        asyncio.run_coroutine_threadsafe(self.job(name, user_id), self.loop)
 
     def schedule_job(self, job_id: str, name: str, interval: int, user_id: str):
         self.scheduled_jobs[job_id] = {
