@@ -107,7 +107,7 @@ async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         tracked_products = context.user_data.setdefault('tracked_products', [])
         if not any(product['name'] == product_name for product in tracked_products):
             tracked_products.append({'id': product_id, 'name': product_name})
-            scheduler.schedule_job(product_id, product_name, 1, user_id)
+            scheduler.schedule_job(product_id, product_name, 10, user_id)
             await update.message.reply_text(f'Product "{product_name}" has been added to your tracked products.')
         else:
             await update.message.reply_text(f'You already have "{product_name}" in your tracked products.')

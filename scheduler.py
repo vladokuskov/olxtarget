@@ -37,13 +37,18 @@ class Scheduler:
                     price_label = param.get('value', {}).get('label', 'Price not available')
                     break
 
-            message = f"New product found: {title}\nPrice: {price_label}\nURL: {url}"
+            message = (
+                f"🔔 *New Product Found!*\n\n"
+                f"*Title:* {title}\n"
+                f"*Price:* {price_label}\n"
+                f"*Link:* [Click here]({url})\n"
+            )
 
             try:
                 # Send a notification to the user
                 await bot.send_message(chat_id=user_id, text=message)
             except Exception as e:
-                print(f"Error sending message to user: {e}")
+                logger.error(f"Error sending message to user: {e}")
 
             store.add_product(url, user_id)
 
