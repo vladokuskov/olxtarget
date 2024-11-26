@@ -76,7 +76,7 @@ class Scheduler:
             if job_id not in self.scheduled_jobs:
                 self.scheduled_jobs[job_id] = {
                     "name": product_name,  # Store just the name or any other relevant info
-                    "job": schedule.every(1).minutes.do(self.run_async_job, product_name, user_id)
+                    "job": schedule.every(10).minutes.do(self.run_async_job, product_name, user_id)
                 }
                 logger.info(f"Job for product: {product_name} and user ID: {user_id} - scheduled every 1 minute.")
             else:
