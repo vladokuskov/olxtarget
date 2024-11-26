@@ -12,7 +12,7 @@ def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     start_scheduler_thread()
 
-    # Add handlers
+    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("search", search))
     application.add_handler(CommandHandler("tracking", tracking))
