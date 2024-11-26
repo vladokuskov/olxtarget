@@ -1,11 +1,9 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-
+from db import db
 from helpers.api import fetch_olx_products
-from utils import check_authorization, main_reply_keyboard
 from scheduler import scheduler
-
-import uuid
+from utils import check_authorization, main_reply_keyboard
 
 
 # Command to start the bot
@@ -24,29 +22,34 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 # Command to manage product tracking
 async def tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    tracked_products = context.user_data.get('tracked_products', [])
+    user_id = update.effective_user.id
+    tracked_products = db.get_tracked_products(user_id)
+
     keyboard = [["Back"]]
     if not tracked_products:
         keyboard.insert(0, ["Add product to track"])
+        response = "You have no tracked products."
     else:
-        response = "You have the following products tracked:\n\n" + "\n".join(product['name'] for product in tracked_products)
+        response = "You have the following products tracked:\n\n" + "\n".join(product for product in tracked_products)
         for product in tracked_products:
-            keyboard.insert(-1, [product["name"]])
+            keyboard.insert(-1, [product])
         if len(tracked_products) + 1 <= 5:
             keyboard.insert(0, ["Add product to track"])
 
-    await update.message.reply_text(response if tracked_products else "You have no tracked products.", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+    await update.message.reply_text(response, reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
 
 # Handle user inputs
 async def handle_user_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+
     if context.user_data.get('waiting_for_search'):
         await handle_search_input(update, context)
     elif context.user_data.get('adding_product'):
         await handle_add_product(update, context)
     elif update.message.text == "Add product to track":
         await prompt_product_name(update, context)
-    elif any(product['name'] == update.message.text for product in context.user_data.get('tracked_products', [])):
+    elif any(product == update.message.text for product in db.get_tracked_products(user_id)):
         await handle_remove_product(update, context)
     elif update.message.text == "Back":
         await back_to_main_menu(update)
@@ -63,12 +66,13 @@ async def handle_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     product_name = update.message.text
-    product_id = uuid.uuid4().hex
-    tracked_products = context.user_data.setdefault('tracked_products', [])
+    user_id = update.effective_user.id
+    tracked_products = db.get_tracked_products(user_id)
 
-    if not any(product['name'] == product_name for product in tracked_products):
-        tracked_products.append({'id': product_id, 'name': product_name})
-        scheduler.schedule_job(product_id, product_name, 10, update.effective_user.id)
+    if not any(product == product_name for product in tracked_products):
+        db.add_product(product_name, user_id)
+        scheduler.schedule_job_for_user(user_id)
+        # scheduler.schedule_job(product_name, 10, update.effective_user.id)
         await update.message.reply_text(f'Product "{product_name}" has been added to your tracked products.')
     else:
         await update.message.reply_text(f'You already have "{product_name}" in your tracked products.')
@@ -84,11 +88,11 @@ async def prompt_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_remove_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     product_to_remove = update.message.text
-    tracked_products = context.user_data['tracked_products']
-    product_to_remove_obj = next(product for product in tracked_products if product['name'] == product_to_remove)
+    user_id = update.effective_user.id
+    job_id = f"{user_id}_{product_to_remove}"
 
-    scheduler.cancel_job(product_to_remove_obj['id'])
-    context.user_data['tracked_products'] = [product for product in tracked_products if product['name'] != product_to_remove]
+    db.remove_product(product_to_remove, user_id)
+    scheduler.cancel_job(job_id)
     await update.message.reply_text(f'Product "{product_to_remove}" has been removed from your tracked products.')
     await tracking(update, context)
 

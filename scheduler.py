@@ -7,12 +7,13 @@ from dotenv import load_dotenv
 import schedule
 from helpers.api import fetch_olx_products
 from helpers.logger import logger
-from store import store
-
+from db import db
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 bot = Bot(token=TOKEN)
+
+sent_product_urls = {}
 
 
 def run_scheduler():
@@ -26,18 +27,21 @@ class Scheduler:
         self.scheduled_jobs = {}
         self.loop = asyncio.get_event_loop()
 
-    async def job(self, name: str, user_id: str):
-        products = await fetch_olx_products(name)
+    async def job(self, product_name: str, user_id: str):
+        # Fetch products based on the name from OLX
+        olx_products = await fetch_olx_products(product_name)
 
-        for product in products:
-            title = product.get('title', 'No title')
-            url = product.get('url', 'No URL')
+        if user_id not in sent_product_urls:
+            sent_product_urls[user_id] = set()
 
-            if store.is_product_exist(url, user_id):
+        for olx_product in olx_products:
+            url = olx_product.get('url', 'No URL')
+            if url in sent_product_urls[user_id]:
                 continue
 
+            title = olx_product.get('title', 'No title')
             price_label = ''
-            for param in product.get('params', []):
+            for param in olx_product.get('params', []):
                 if param.get('key') == 'price':
                     price_label = param.get('value', {}).get('label', 'Price not available')
                     break
@@ -49,24 +53,34 @@ class Scheduler:
                 f"{url}\n"
             )
 
+            # Send a notification to the user
             try:
-                # Send a notification to the user
                 await bot.send_message(chat_id=user_id, text=message)
+                sent_product_urls[user_id].add(url)
+                logger.info(f"Sent product to user {user_id}: {url}")
             except Exception as e:
                 logger.error(f"Error sending message to user: {e}")
 
-            store.add_product(url, user_id)
+    def run_async_job(self, product_name: str, user_id: str):
+        # Run the asynchronous job for a specific user/product
+        asyncio.run_coroutine_threadsafe(self.job(product_name, user_id), self.loop)
 
-    def run_async_job(self, name: str, user_id: str):
-        # Create an event loop and run the async job
-        asyncio.run_coroutine_threadsafe(self.job(name, user_id), self.loop)
+    def schedule_job_for_user(self, user_id: str):
+        tracked_products = db.get_tracked_products(user_id)
 
-    def schedule_job(self, job_id: str, name: str, interval: int, user_id: str):
-        self.scheduled_jobs[job_id] = {
-            "name": name,
-            "job": schedule.every(1).minutes.do(self.run_async_job, name, user_id)
-        }
-        logger.info(f"Job for product: {name} and ID: ({job_id}) - scheduled every {interval} minutes.")
+        for product in tracked_products:
+            product_name = product
+            job_id = f"{user_id}_{product}"
+
+            # Check if the job for this product already exists
+            if job_id not in self.scheduled_jobs:
+                self.scheduled_jobs[job_id] = {
+                    "name": product_name,  # Store just the name or any other relevant info
+                    "job": schedule.every(1).minutes.do(self.run_async_job, product_name, user_id)
+                }
+                logger.info(f"Job for product: {product_name} and user ID: {user_id} - scheduled every 1 minute.")
+            else:
+                logger.info(f"Job for product: {product_name} and user ID: {user_id} already scheduled.")
 
     def cancel_job(self, job_id: str):
         if job_id in self.scheduled_jobs:
@@ -79,8 +93,15 @@ class Scheduler:
 
 def start_scheduler_thread():
     thread = threading.Thread(target=run_scheduler)
-    thread.daemon = True  # Daemonize thread
-    thread.start()  # Start the scheduler thread
+    thread.daemon = True
+    thread.start()
 
 
 scheduler = Scheduler()
+
+
+def start_scheduling_for_all_users():
+    all_users = db.get_all_users()
+
+    for user in all_users:
+        scheduler.schedule_job_for_user(user['user_id'])

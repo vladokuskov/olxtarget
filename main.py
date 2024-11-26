@@ -1,6 +1,6 @@
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from bot import start, search, tracking, handle_user_input
-from scheduler import start_scheduler_thread
+from scheduler import start_scheduler_thread, start_scheduling_for_all_users
 from dotenv import load_dotenv
 import os
 
@@ -11,6 +11,8 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     start_scheduler_thread()
+
+    start_scheduling_for_all_users()
 
     # Handlers
     application.add_handler(CommandHandler("start", start))
