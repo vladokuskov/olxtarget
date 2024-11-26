@@ -1,3 +1,4 @@
+import certifi
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
@@ -9,7 +10,7 @@ MONGODB_DSN = os.getenv('MONGODB_DSN')
 class DB:
     def __init__(self, db_name="olx-target-db", collection_name="users"):
         # Connect to MongoDB client
-        self.client = MongoClient(MONGODB_DSN)  # Assuming MongoDB is running locally
+        self.client = MongoClient(MONGODB_DSN, ssl=True, tlsCAFile=certifi.where())  # Assuming MongoDB is running locally
         self.db = self.client[db_name]
         self.collection = self.db[collection_name]
 
