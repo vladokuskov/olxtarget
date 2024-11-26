@@ -46,7 +46,7 @@ jobs:
             docker rm -f $(docker ps -a -q) || true
             docker rmi -f $(docker images -q) || true
             
-            docker run -d --env-file=/home/ubuntu/olx-target.env --name ${{ secrets.DOCKER_PROD_IMAGE_NAME }} -p 3000:3000 ${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+            docker run -d --env-file=/home/ubuntu/olx-target.env --name ${{ secrets.DOCKER_PROD_IMAGE_NAME }} -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
       
       
       - name: Cleanup 🧹
