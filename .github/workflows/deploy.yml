@@ -39,13 +39,19 @@ jobs:
           script: |
             docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
             docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+            
+            # Stop and remove existing container
             docker stop ${{ secrets.DOCKER_PROD_IMAGE_NAME }} || true
             docker rm ${{ secrets.DOCKER_PROD_IMAGE_NAME }} || true
-            docker rm -f $(docker ps -a -q)
-            docker rmi -f $(docker images -q)
-            docker run -d -env-file=/home/ubuntu/olx-target.env --name ${{ secrets.DOCKER_PROD_IMAGE_NAME }} -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
-            exit
             
+            # Clean up unused containers and images
+            docker rm -f $(docker ps -a -q) || true
+            docker rmi -f $(docker images -q) || true
+            
+            # Run the container
+            docker run -d --env-file=/home/ubuntu/olx-target.env --name ${{ secrets.DOCKER_PROD_IMAGE_NAME }} -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+      
+      
 
       - name: Cleanup 🧹
         run: rm -rf ~/.ssh
