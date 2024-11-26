@@ -1,0 +1,51 @@
+name: Production 🚀
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and publish image 🛠️
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository 🔎
+        uses: actions/checkout@v3
+
+      - name: Build Docker image 🐳
+        run: |
+          docker build \
+          -f Dockerfile \
+          -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}:latest \
+          .
+
+      - name: Publish Docker image 📦
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+
+  deploy:
+    needs: build
+    name: Deploy image 🚀
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pull and run container 🏃️
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSHKEY }}
+          script: |
+            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+            docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+            docker stop ${{ secrets.DOCKER_PROD_IMAGE_NAME }} || true
+            docker rm ${{ secrets.DOCKER_PROD_IMAGE_NAME }} || true
+            docker rm -f $(docker ps -a -q)
+            docker rmi -f $(docker images -q)
+            docker run -d -env-file=/home/ubuntu/olx-target.env --name ${{ secrets.DOCKER_PROD_IMAGE_NAME }} -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_PROD_IMAGE_NAME }}
+            exit
+            
+
+      - name: Cleanup 🧹
+        run: rm -rf ~/.ssh
